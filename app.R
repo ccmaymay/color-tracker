@@ -14,40 +14,6 @@ library(jsonlite)
 library(janitor)
 library(lubridate)
 
-color_levels <- c("purple", "blue", "turquoise", "orange")
-api_key <- Sys.getenv("GOOGLE_API_KEY")
-spreadsheet_id <- Sys.getenv("SPREADSHEET_ID")
-client <- HttpClient$new(url="https://sheets.googleapis.com")
-response <- client$get(
-  path=str_c("/v4/spreadsheets/", spreadsheet_id, "/values/A1:F"),
-  query=list(key=api_key))
-response$raise_for_ct_json()
-response$success()
-data <- fromJSON(response$parse())$values %>%
-  row_to_names(1) %>%
-  as_tibble(.name_repair="check_unique") %>%
-  filter(
-    Date %>% str_trim %>% str_length > 0,
-    Method %>% str_trim %>% str_length > 0,
-    `Time 1` %>% str_trim %>% str_length > 0,
-    `Time 2` %>% str_trim %>% str_length > 0,
-    `Total time` %>% str_trim %>% str_length > 0) %>%
-  mutate(
-    date=Date %>% mdy,
-    method=Method,
-    time_1=`Time 1` %>% hms %>% as.numeric("minute"),
-    time_2=`Time 2` %>% hms %>% as.numeric("minute"),
-    total_time=`Total time` %>% hms %>% as.numeric("minute")) %>%
-  separate_wider_delim(method, "/", names=c("color_1", "color_2")) %>%
-  pivot_longer(
-    cols=c(color_1, color_2),
-    names_to="color_type",
-    values_to="color") %>%
-  mutate(
-    color_num=color_type %>% str_split_i(fixed("_"), 2) %>% as.numeric,
-    color=factor(color, levels=color_levels),
-    time=ifelse(color_num == 1, time_1, time_2))
-
 
 # Define UI for application
 ui <- fluidPage(
@@ -62,6 +28,41 @@ ui <- fluidPage(
 
 # Define server logic
 server <- function(input, output) {
+  color_levels <- c("purple", "blue", "turquoise", "orange")
+  api_key <- Sys.getenv("GOOGLE_API_KEY")
+  spreadsheet_id <- Sys.getenv("SPREADSHEET_ID")
+  client <- HttpClient$new(url="https://sheets.googleapis.com")
+  response <- client$get(
+    path=str_c("/v4/spreadsheets/", spreadsheet_id, "/values/A1:F"),
+    query=list(key=api_key))
+  if (! response$success()) {
+    stop(str_c("Status ", as.character(response$status), " from data source API"))
+  }
+  response$raise_for_ct_json()
+  data <- fromJSON(response$parse())$values %>%
+    row_to_names(1) %>%
+    as_tibble(.name_repair="check_unique") %>%
+    filter(
+      Date %>% str_trim %>% str_length > 0,
+      Method %>% str_trim %>% str_length > 0,
+      `Time 1` %>% str_trim %>% str_length > 0,
+      `Time 2` %>% str_trim %>% str_length > 0,
+      `Total time` %>% str_trim %>% str_length > 0) %>%
+    mutate(
+      date=Date %>% mdy,
+      method=Method,
+      time_1=`Time 1` %>% hms %>% as.numeric("minute"),
+      time_2=`Time 2` %>% hms %>% as.numeric("minute"),
+      total_time=`Total time` %>% hms %>% as.numeric("minute")) %>%
+    separate_wider_delim(method, "/", names=c("color_1", "color_2")) %>%
+    pivot_longer(
+      cols=c(color_1, color_2),
+      names_to="color_type",
+      values_to="color") %>%
+    mutate(
+      color_num=color_type %>% str_split_i(fixed("_"), 2) %>% as.numeric,
+      color=factor(color, levels=color_levels),
+      time=ifelse(color_num == 1, time_1, time_2))
   output$scatterPlot <- renderPlot({
     data %>%
       ggplot(aes(x=date, y=time, group=color, color=color)) +
