@@ -66,7 +66,7 @@ server <- function(input, output) {
   output$scatterPlot <- renderPlot({
     data %>%
       ggplot(aes(x=date, y=time, group=color, color=color)) +
-      geom_point(size=5) +
+      geom_jitter(size=5, height=0.5, width=0) +
       scale_color_identity() +
       theme_bw() +
       ylab("time elapsed (minutes)") +
