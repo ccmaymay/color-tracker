@@ -52,7 +52,13 @@ processRawData <- function(data) {
           date_chr %>% mdy_hms(tz=tz)
         }
       }),
-      adjusted_date=(start_datetime - hours(6)) %>% floor_date("day"),
+      adjusted_date=list(Date, start_datetime) %>% pmap_vec(function(date_chr, start_dt) {
+        if (!is.na(start_dt)) {
+          (start_dt - hours(6)) %>% floor_date("day")
+        } else {
+          date_chr %>% mdy(tz=tz)
+        }
+      }),
       adjusted_start_hour=difftime(start_datetime, adjusted_date),
       colors=Colors,
       duration_1_minutes=`Time 1` %>% hms %>% as.numeric("minute"),
@@ -87,7 +93,7 @@ makeScatterPlot <- function(data, colors_to_show) {
   data %>%
     mutate(alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
     ggplot(aes(x=adjusted_date, y=time_minutes, group=display_color, color=display_color, alpha=alpha)) +
-    geom_point(size=5) +
+    geom_point(size=4) +
     scale_color_identity() +
     scale_alpha_identity() +
     theme_bw() +
@@ -101,8 +107,7 @@ makeStartTimePlot <- function(data, colors_to_show) {
   data %>%
     mutate(alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
     ggplot(aes(x=adjusted_start_hour, y=time_minutes, group=display_color, color=display_color, alpha=alpha)) +
-    geom_point(size=5) +
-    geom_vline(xintercept=24) +
+    geom_point(size=4) +
     scale_color_identity() +
     scale_alpha_identity() +
     theme_bw() +
