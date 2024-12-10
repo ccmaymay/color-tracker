@@ -100,7 +100,7 @@ makeScatterPlot <- function(data, colors_to_show) {
     theme(legend.position="none") +
     xlab("date") +
     ylab("time elapsed (minutes)") +
-    ggtitle("Elapsed Times")
+    ggtitle("Elapsed Time")
 }
 
 makeStartTimePlot <- function(data, colors_to_show) {
@@ -114,7 +114,7 @@ makeStartTimePlot <- function(data, colors_to_show) {
     theme(legend.position="none") +
     xlab("start hour (relative to midnight)") +
     ylab("time elapsed (minutes)") +
-    ggtitle("Elapsed Times versus Start Hour")
+    ggtitle("Elapsed Time versus Start Hour")
 }
 
 makeBarPlot <- function(data, colors_to_show) {
@@ -129,7 +129,7 @@ makeBarPlot <- function(data, colors_to_show) {
     theme_bw() +
     xlab("date") +
     ylab("time elapsed (minutes)") +
-    ggtitle("Elapsed Times (Stacked)")
+    ggtitle("Elapsed Time (Stacked by Day)")
 }
 
 makeFacetedBarPlot <- function(data, colors_to_show) {
