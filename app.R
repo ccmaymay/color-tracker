@@ -17,9 +17,9 @@ library(lubridate)
 api_key <- Sys.getenv("GOOGLE_API_KEY")
 spreadsheet_id <- Sys.getenv("SPREADSHEET_ID")
 
-color_levels <- c("purple", "blue", "IR blue", "turquoise", "IR turquoise", "orange", "IR purple")
+color_levels <- c("IR blue", "purple", "blue", "IR turquoise", "turquoise", "IR purple", "orange")
 #color_map <- c('purple'='#b76d96', 'blue'='#43679a', 'turquoise'='#8bb4a4', 'orange'='#eb8621')
-color_map <- c('purple'='purple', 'blue'='blue', 'IR blue'='#bbccff', 'turquoise'='turquoise', 'IR turquoise'='#ccffee', 'orange'='orange', 'IR purple'='#eeccff')
+color_map <- c('purple'='purple', 'blue'='blue', 'turquoise'='turquoise', 'orange'='orange', 'IR blue'='#bbccff', 'IR turquoise'='#ccffee', 'IR purple'='#eeccff')
 tz <- 'US/Eastern'
 
 loadRawData <- function() {
@@ -74,7 +74,7 @@ processRawData <- function(data) {
       color_num=color_type %>% str_split_i(fixed("_"), 2) %>% as.numeric,
       color=factor(color, levels=color_levels),
       display_color=factor(
-        as.character(color_map[color]),
+        as.character(color_map[as.character(color)]),
         levels=as.character(color_map[color_levels])),
       time_minutes=ifelse(color_num == 1, duration_1_minutes, duration_2_minutes)) %>%
     select(
@@ -120,7 +120,7 @@ makeStartTimePlot <- function(data, colors_to_show) {
 makeBarPlot <- function(data, colors_to_show) {
   data %>%
     # Sort colors so smaller colors appear on lower bars
-    mutate(display_color=factor(display_color, levels=rev(color_map)),
+    mutate(display_color=factor(display_color, levels=rev(color_map[color_levels])),
            alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
     ggplot(aes(x=adjusted_date, y=time_minutes, group=display_color, fill=display_color, alpha=alpha)) +
     geom_bar(stat='identity', position='stack') +
