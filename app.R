@@ -17,9 +17,9 @@ library(lubridate)
 api_key <- Sys.getenv("GOOGLE_API_KEY")
 spreadsheet_id <- Sys.getenv("SPREADSHEET_ID")
 
-color_levels <- c("purple", "blue", "turquoise", "orange")
+color_levels <- c("purple", "blue", "IR blue", "turquoise", "IR turquoise", "orange", "IR purple")
 #color_map <- c('purple'='#b76d96', 'blue'='#43679a', 'turquoise'='#8bb4a4', 'orange'='#eb8621')
-color_map <- c('purple'='purple', 'blue'='blue', 'turquoise'='turquoise', 'orange'='orange')
+color_map <- c('purple'='purple', 'blue'='blue', 'IR blue'='#bbccff', 'turquoise'='turquoise', 'IR turquoise'='#ccffee', 'orange'='orange', 'IR purple'='#eeccff')
 tz <- 'US/Eastern'
 
 loadRawData <- function() {
@@ -66,7 +66,8 @@ processRawData <- function(data) {
       values_to="color") %>%
     mutate(
       color_num=color_type %>% str_split_i(fixed("_"), 2) %>% as.numeric,
-      color=factor(
+      color=factor(color, levels=color_levels),
+      display_color=factor(
         as.character(color_map[color]),
         levels=as.character(color_map[color_levels])),
       time_minutes=ifelse(color_num == 1, duration_1_minutes, duration_2_minutes)) %>%
@@ -76,6 +77,7 @@ processRawData <- function(data) {
       adjusted_start_hour,
       color,
       color_num,
+      display_color,
       time_minutes,
       total_duration_minutes,
       notes)
@@ -83,54 +85,72 @@ processRawData <- function(data) {
 
 makeScatterPlot <- function(data, colors_to_show) {
   data %>%
-    mutate(show_color=color %in% colors_to_show) %>%
-    ggplot(aes(x=adjusted_date, y=time_minutes, group=color, color=color, alpha=show_color)) +
+    mutate(alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
+    ggplot(aes(x=adjusted_date, y=time_minutes, group=display_color, color=display_color, alpha=alpha)) +
     geom_point(size=5) +
     scale_color_identity() +
-    scale_alpha_discrete(range=c(0, 1)) +
+    scale_alpha_identity() +
     theme_bw() +
     theme(legend.position="none") +
     xlab("date") +
     ylab("time elapsed (minutes)") +
-    ggtitle("Individual Times")
+    ggtitle("Elapsed Times")
 }
 
-makeBarPlot <- function(data) {
+makeStartTimePlot <- function(data, colors_to_show) {
+  data %>%
+    mutate(alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
+    ggplot(aes(x=adjusted_start_hour, y=time_minutes, group=display_color, color=display_color, alpha=alpha)) +
+    geom_point(size=5) +
+    geom_vline(xintercept=24) +
+    scale_color_identity() +
+    scale_alpha_identity() +
+    theme_bw() +
+    theme(legend.position="none") +
+    xlab("start hour (relative to midnight)") +
+    ylab("time elapsed (minutes)") +
+    ggtitle("Elapsed Times versus Start Hour")
+}
+
+makeBarPlot <- function(data, colors_to_show) {
   data %>%
     # Sort colors so smaller colors appear on lower bars
-    mutate(color=factor(color, levels=rev(color_levels))) %>%
-    ggplot(aes(x=adjusted_date, y=time_minutes, group=color, fill=color)) +
+    mutate(display_color=factor(display_color, levels=rev(color_map)),
+           alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
+    ggplot(aes(x=adjusted_date, y=time_minutes, group=display_color, fill=display_color, alpha=alpha)) +
     geom_bar(stat='identity', position='stack') +
     scale_fill_identity() +
+    scale_alpha_identity() +
     theme_bw() +
     xlab("date") +
     ylab("time elapsed (minutes)") +
-    ggtitle("Combined Times")
+    ggtitle("Elapsed Times (Stacked)")
 }
 
-makeFacetedBarPlot <- function(data) {
+makeFacetedBarPlot <- function(data, colors_to_show) {
   data %>%
-    mutate(color_copy=color) %>%
-    ggplot(aes(x=adjusted_date, y=time_minutes, fill=color_copy)) +
+    mutate(alpha=ifelse(color %in% colors_to_show, 1, 0)) %>%
+    ggplot(aes(x=adjusted_date, y=time_minutes, fill=display_color, alpha=alpha)) +
     geom_bar(stat='identity', position='dodge') +
     scale_fill_identity() +
+    scale_alpha_identity() +
     theme_bw() +
     xlab("date") +
     ylab("time elapsed (minutes)") +
     facet_grid(color ~ .) +
-    ggtitle("Individual Times Separated by Color")
+    ggtitle("Elapsed Times Separated by Color")
 }
 
-makeSummaryBarPlot <- function(data) {
+makeSummaryBarPlot <- function(data, colors_to_show) {
   data %>%
-    mutate(color_copy=color) %>%
-    ggplot(aes(y=time_minutes, fill=color_copy)) +
+    filter(color %in% colors_to_show) %>%
+    ggplot(aes(y=time_minutes, fill=display_color)) +
     geom_histogram() +
     scale_fill_identity() +
     theme_bw() +
     ylab("time elapsed (minutes)") +
     facet_grid(~ color) +
-    ggtitle("Time Distribution per Color")
+    ggtitle("Elapsed Time Distribution per Color")
 }
 
 # Define UI for application
@@ -139,11 +159,13 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       checkboxGroupInput("colors", "Colors to show:",
-                         c("purple", "blue", "turquoise", "orange"),
+                         color_levels,
                          selected=c("purple", "blue", "turquoise", "orange"))),
     mainPanel(
       plotOutput("scatterPlot", height=400),
-      plotOutput("barPlot", height=400))
+      plotOutput("barPlot", height=400),
+      plotOutput("startTimePlot", height=400),
+      plotOutput("summaryPlot", height=400))
   )
 )
 
@@ -151,9 +173,10 @@ ui <- fluidPage(
 server <- function(input, output) {
   data <- loadRawData() %>% processRawData
   output$scatterPlot <- renderPlot(data %>% makeScatterPlot(input$colors))
-  output$barPlot <- renderPlot(data %>% makeBarPlot)
-  #output$facetedBarPlot <- renderPlot(data %>% makeFacetedBarPlot)
-  #output$summaryPlot <- renderPlot(data %>% makeSummaryBarPlot)
+  output$barPlot <- renderPlot(data %>% makeBarPlot(input$colors))
+  output$startTimePlot <- renderPlot(data %>% makeStartTimePlot(input$colors))
+  #output$facetedBarPlot <- renderPlot(data %>% makeFacetedBarPlot(input$colors))
+  output$summaryPlot <- renderPlot(data %>% makeSummaryBarPlot(input$colors))
 }
 
 # Run the application 
